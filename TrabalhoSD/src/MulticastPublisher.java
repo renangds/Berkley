@@ -11,12 +11,6 @@ public class MulticastPublisher {
 
     public static void main(String...args) throws IOException{
         MulticastPublisher message = new MulticastPublisher();
-        //MulticastPublisher m2 = new MulticastPublisher();
-
-        //m2.multicast("3");
-        //m.multicast("2");
-
-        System.out.println("Aviso: Ao se incluir um novo nó na rede, serão feitas novas eleições!");
 
         Scanner read = new Scanner(System.in);
 
@@ -32,17 +26,27 @@ public class MulticastPublisher {
             } else{
                 switch(option){
                     case 1:
+
                         System.out.println("Criando um novo nó na rede distribuída");
-                        TestsDatagram novoNo = new TestsDatagram();
+
+                        System.out.println("Digite o tempo: ");
+
+                        String time = read.next();
+
+                        System.out.println("Digite o delay");
+
+                        int delayTime = read.nextInt();
+
+                        TestsDatagram novoNo = new TestsDatagram(time, delayTime);
                         new Thread(novoNo).start();
-                        System.out.println("Será feita nova eleição");
                         break;
                     case 2:
                         System.out.println("Algoritmo de Berkley...");
+                        message.multicast("0");
                         break;
                     case 3:
                         System.out.println("Saindo...");
-                        message.multicast(Messages.EXIT.getValue());
+                        message.multicast("1");
                         quit = true;
                         break;
                 }

@@ -1,113 +1,179 @@
 import java.io.IOException;
 import java.net.*;
-import java.util.ArrayList;
-import java.util.Enumeration;
-import java.util.List;
-import java.util.Objects;
+import java.util.*;
 
 public class TestsDatagram extends Thread {
 
     protected MulticastSocket socket = null;
     protected byte[] buf = new byte[256];
     protected int idProcess;
-    protected boolean isDaemon = false;
+    protected boolean isDaemon = true;
+    protected Clock processTime;
     public static int id = 1;
 
-    public static void main(String...args) throws IOException, InterruptedException{
-        TestsDatagram t = new TestsDatagram();
-        new Thread(t).start();
+    public TestsDatagram(String timeProcess, int delayTime){
+        this.processTime = new Clock(timeProcess, delayTime, this.idProcess);
     }
 
-    public static List<InetAddress> listAllAddresses() throws SocketException {
-        List <InetAddress> list = new ArrayList<>();
-
-        Enumeration<NetworkInterface> interfaces = NetworkInterface.getNetworkInterfaces();
-
-        while(interfaces.hasMoreElements()){
-            NetworkInterface networkInterface = interfaces.nextElement();
-
-            if(networkInterface.isLoopback() || !networkInterface.isUp()){
-                continue;
-            }
-
-            networkInterface.getInterfaceAddresses().stream()
-                    .map(a -> a.getBroadcast())
-                    .filter(Objects::nonNull)
-                    .forEach(list::add);
-        }
-
-        System.out.println(list.size());
-
-        return list;
-    }
-
-    public void run() {
+    public void run(){
         try{
             this.idProcess = id;
             id++;
+
+            new Thread(this.processTime).start();
+
             System.out.println("Cliente conectado com ID: " + this.idProcess);
+
             this.socket = new MulticastSocket(4446);
+            DatagramPacket receiver = new DatagramPacket(this.buf, this.buf.length);
             InetAddress group = InetAddress.getByName("230.0.0.0");
-            socket.joinGroup(group);
-            System.out.println("Cliente conectado ao grupo " + group.getHostAddress());
-            int global = 0;
+            this.socket.joinGroup(group);
 
-            //Trecho do código onde será feita nova eleição na criação do processo
-            MulticastPublisher sender = new MulticastPublisher();
-            sender.multicast(Messages.ELEICAO.getValue());
+            while(true){
+                System.out.println("Aguardando receber mensagem");
+                this.socket.receive(receiver);
 
-            System.out.println("Aguardando receber mensagem dos processos");
+                System.out.println("Current time ID " + this.idProcess + ": " + this.processTime.getNodeTime().toString());
 
-            DatagramPacket packetEleicao = new DatagramPacket(buf, buf.length);
-            socket.receive(packetEleicao);
-            int valueIdProcess = Integer.parseInt(new String(packetEleicao.getData(), 0, packetEleicao.getLength()));
+                String rect = new String(receiver.getData(), 0, receiver.getLength());
+                System.out.println("Processo ID " + this.idProcess + " Recebeu requisição " + rect);
 
-            System.out.println(valueIdProcess);
+                if("0".equals(rect)){
+                    MulticastPublisher publisher = new MulticastPublisher();
+                    publisher.multicast(Integer.toString(this.idProcess));
 
-            if(valueIdProcess < this.idProcess){
-                this.isDaemon = true;
-                System.out.println("Processo ID " + Integer.toString(this.idProcess) + " é o novo líder eleito");
-                //sender.multicast("Processo com Id 3 lider");
-            } else{
+                    while(true){
+                        //Algoritmo de Bully
+                        this.socket.setSoTimeout(2000);
 
-            }
+                        try{
+                            this.socket.receive(receiver);
+                            String newMessage = new String(receiver.getData(), 0, receiver.getLength());
+                            int idNetworkNode = Integer.parseInt(newMessage);
 
-            //Fim trecho do código da eleição
+                            if(idNetworkNode == this.idProcess) continue;
 
-            /*
-            if(listAllAddresses().size() == 1){
-                System.out.println("Estou sozinho. Meu ID é: " + this.idProcess);
-            } else{
-                System.out.println("Sou novo no grupo, faremos novas eleições. Meu ID: " + this.idProcess);
-            }
-             */
+                            if(idNetworkNode > this.idProcess){
+                                this.isDaemon = false;
+                            }
 
-            while (true) {
-                System.out.println("Aguardando receber a mensagem");
-                DatagramPacket packet = new DatagramPacket(buf, buf.length);
-                socket.receive(packet);
-                String received = new String(packet.getData(), 0, packet.getLength());
+                        } catch(SocketTimeoutException e){
 
-                //global += Integer.parseInt(received);
-                //Thread.sleep(10000);
-                //System.out.println(global);
+                            //Algoritmo de Berkley
+                            if(this.isDaemon){
+                                System.out.println("Process with ID " + this.idProcess + " is a leader!");
 
-                if ("0".equals(received)) {
+                                System.out.println("Leader current time ID "+ this.idProcess + ": " + this.processTime.getNodeTime().toString());
+
+                                System.out.println("O valor a ser enviado é: " + this.processTime.getMinutes());
+
+                                publisher.multicast("1 " + Integer.toString(this.processTime.getMinutes()));
+
+                                List <Integer> times = new ArrayList<>();
+
+                                List <String> messages = new ArrayList<>();
+
+                                times.add(0);
+
+                                while(true){
+                                    this.socket.setSoTimeout(2000);
+
+                                    try{
+                                        socket.receive(receiver);
+                                        String timeString = new String(receiver.getData(), 0, receiver.getLength());
+
+                                        messages = Arrays.asList(timeString.split(" "));
+
+                                        if(messages.get(0).trim().equals("1")) continue;
+
+                                        int temp = Integer.parseInt(messages.get(1).toString().trim());
+
+                                        times.add(temp);
+                                    } catch(SocketTimeoutException r){
+                                        int timeStamp = times.stream().mapToInt(p -> p/times.size()).sum();
+
+                                        this.processTime.setCertainTime(timeStamp);
+
+                                        publisher.multicast("1 " + Integer.toString(this.processTime.getMinutes()));
+
+                                        System.out.println("Tempo do líder atualizado é: " + this.processTime.getNodeTime());
+
+                                        socket.receive(receiver); //Artifício para receber a última mensagem
+
+                                        this.socket.setSoTimeout(0);
+
+                                        break;
+                                    }
+                                }
+
+                            } else{
+                                System.out.println("Slave current time id: " + this.idProcess + ": " + this.processTime.getNodeTime().toString());
+
+                                List <String> messages = new ArrayList<>();
+
+                                //Irá receber a mensagem do processo líder
+
+                                System.out.println("Aguardando receber mensagem com os minutos do processo líder");
+
+                                this.socket.receive(receiver);
+
+                                String firstTimeDaemon = new String(receiver.getData(), 0, receiver.getLength());
+
+                                messages = Arrays.asList(firstTimeDaemon.split(" "));
+
+                                int diffTime = this.processTime.timeStamp(Integer.parseInt(messages.get(1)));
+
+                                System.out.println("Enviado a diferença de tempo de " + diffTime + " ao líder");
+
+                                publisher.multicast("0 " + Integer.toString(diffTime));
+
+                                while(true){
+                                    this.socket.setSoTimeout(4000);
+
+                                    try{
+                                        System.out.println("Aguardando receber mensagem do líder para acertar o tempo");
+                                        this.socket.receive(receiver);
+
+                                        String secondMessageDaemon = new String(receiver.getData(), 0, receiver.getLength());
+
+                                        messages = Arrays.asList(secondMessageDaemon.split(" "));
+
+                                        if(!messages.get(0).trim().equals("1")) continue;
+
+                                        int timeStamp = this.processTime.timeStamp(Integer.parseInt(messages.get(1)))*-1;
+
+                                        this.processTime.setCertainTime(timeStamp);
+
+                                        System.out.println("Recebido " + timeStamp + " do processo lider para ajustar " +
+                                                "relógio ID " + this.idProcess);
+
+                                        System.out.println("Tempo do processo " + this.idProcess + " acertado para " +
+                                                this.processTime.getNodeTime().toString());
+                                    } catch(SocketTimeoutException r){
+
+                                        break;
+                                    }
+                                }
+
+                                this.socket.setSoTimeout(0);
+
+                            }
+
+                            break;
+                        }
+                    }
+
+                    this.socket.setSoTimeout(0);
+                } else{
                     break;
-                } else if("2".equals(received)){
-                    sender.multicast(Integer.toString(this.idProcess));
-                } else if ("4".equals(received)){
-
                 }
             }
 
-            System.out.println("Terminando nó...");
-            socket.leaveGroup(group);
-            socket.close();
+            System.out.println("Finalizado");
+            this.socket.leaveGroup(group);
+            this.socket.close();
         } catch(IOException e){
 
-        } /*catch(InterruptedException e){
-
-        }*/
+        }
     }
 }

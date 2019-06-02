@@ -1,13 +1,18 @@
 import java.time.*;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Map;
 import java.util.TimeZone;
 
 public class Main {
 
     public static void main(String[] args) {
-        Clock relogio = Clock.systemUTC();
+        String cabecalho1 = "1 45640";
+        String cabecalho2 = "2 4545";
+        String cabecalho3 = "3 222";
 
-        relogio.instant().plusSeconds(100000L);
+        List <String> requisicao = Arrays.asList(cabecalho1.split(" "));
 
-        System.out.println(relogio.instant());
+        requisicao.forEach(System.out::println);
     }
 }
