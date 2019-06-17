@@ -1,18 +1,48 @@
+import java.io.IOException;
 import java.time.*;
-import java.util.Arrays;
-import java.util.List;
-import java.util.Map;
-import java.util.TimeZone;
+import java.util.*;
 
 public class Main {
 
-    public static void main(String[] args) {
-        String cabecalho1 = "1 45640";
-        String cabecalho2 = "2 4545";
-        String cabecalho3 = "3 222";
+    public static void main(String[] args) throws IOException {
+        System.out.println("Informar o horário");
 
-        List <String> requisicao = Arrays.asList(cabecalho1.split(" "));
+        MulticastPublisher multicast = new MulticastPublisher();
 
-        requisicao.forEach(System.out::println);
+        Scanner s = new Scanner(System.in);
+
+        String horario = s.next();
+
+        System.out.println("Informar o delay");
+
+        int delay = s.nextInt();
+
+        Node node = new Node(horario, delay);
+
+        new Thread(node).start();
+
+        boolean loop = true;
+
+        while(loop){
+            System.out.println("Escolha o comando: \n 1. Eleição \n 2. Sair \n");
+
+            int escolha = s.nextInt();
+
+            switch(escolha){
+                case 1:
+                    multicast.multicast("0");
+                    break;
+
+                case 2:
+                    System.out.println("Saindo...");
+                    multicast.multicast("99");
+                    loop = false;
+                    break;
+
+                    default:
+                        System.out.println("Comando inválido");
+                        break;
+            }
+        }
     }
 }

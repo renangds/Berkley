@@ -4,11 +4,18 @@ public class Clock implements Runnable{
     private LocalTime nodeTime;
     private long delay;
     private int idProcess;
+    private long pidProcess;
 
     public Clock(String defaultTime, long delayTime, int idProcess){
         this.nodeTime = LocalTime.parse(defaultTime);
         this.delay = delayTime;
         this.idProcess = idProcess;
+    }
+
+    public Clock(String defaultTime, long delayTime, long idProcess){
+        this.nodeTime = LocalTime.parse(defaultTime);
+        this.delay = delayTime;
+        this.pidProcess = idProcess;
     }
 
     public void run(){
@@ -44,6 +51,11 @@ public class Clock implements Runnable{
         int minutes = this.nodeTime.getHour()*60 + this.nodeTime.getMinute();
 
         return minutes;
+    }
+
+    @Override
+    public String toString(){
+        return this.nodeTime.toString();
     }
 
 
